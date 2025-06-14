@@ -18,6 +18,12 @@ export const AudioManager = ({ onAudioStateChange }: AudioManagerProps) => {
           (device) => device.kind === 'audiooutput'
         );
 
+        // Log all audio outputs for debugging
+        console.log(
+          'Available audio outputs:',
+          audioOutputs.map((d) => d.label)
+        );
+
         // Strict headphone detection
         const hasHeadphones = audioOutputs.some((device) => {
           const label = device.label.toLowerCase();
@@ -27,13 +33,18 @@ export const AudioManager = ({ onAudioStateChange }: AudioManagerProps) => {
             label.includes('headset') ||
             label.includes('earphone') ||
             label.includes('earbud') ||
-            label.includes('airpods')
+            label.includes('airpods') ||
+            label.includes('bluetooth headphone') ||
+            label.includes('bluetooth headset')
           );
         });
 
-        // Only consider it connected if we explicitly found headphones
+        // Update state and notify parent
         setIsHeadphonesConnected(hasHeadphones);
         onAudioStateChange(hasHeadphones);
+
+        // Log the detection result
+        console.log('Headphones detected:', hasHeadphones);
       } catch (error) {
         console.error('Error checking audio devices:', error);
         // If we can't detect devices, assume no headphones

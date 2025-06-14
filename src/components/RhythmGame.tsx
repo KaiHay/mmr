@@ -136,6 +136,7 @@ export const RhythmGame = () => {
   const backgroundMusicRef = useRef<HTMLAudioElement | null>(null);
   const musicRef = useRef<HTMLAudioElement | null>(null);
   const lastFrameTimeRef = useRef<number>(0);
+  const gainNodeRef = useRef<GainNode | null>(null);
 
   const [activeButtons, setActiveButtons] = useState<Record<NoteType, boolean>>(
     {
@@ -146,36 +147,64 @@ export const RhythmGame = () => {
     }
   );
 
+  const audioRefs = useRef<Record<string, HTMLAudioElement>>({});
+
   const handleAudioStateChange = (hasHeadphones: boolean) => {
+    console.log('Audio state changed:', hasHeadphones);
     setGameState((prev) => ({
       ...prev,
       isHeadphonesConnected: hasHeadphones,
     }));
 
-    // Initialize AudioContext if it doesn't exist
-    if (!audioContextRef.current) {
-      audioContextRef.current = new AudioContext();
+    // Force mute all audio elements when no headphones
+    if (!hasHeadphones) {
+      if (backgroundMusicRef.current) {
+        backgroundMusicRef.current.muted = true;
+        console.log('Muting background music');
+      }
+      if (musicRef.current) {
+        musicRef.current.muted = true;
+        console.log('Muting music');
+      }
+      Object.values(audioRefs.current).forEach((audio) => {
+        audio.muted = true;
+      });
+    } else {
+      if (backgroundMusicRef.current) {
+        backgroundMusicRef.current.muted = false;
+        console.log('Unmuting background music');
+      }
+      if (musicRef.current) {
+        musicRef.current.muted = false;
+        console.log('Unmuting music');
+      }
+      Object.values(audioRefs.current).forEach((audio) => {
+        audio.muted = false;
+      });
     }
 
-    // Mute/unmute background music based on headphone state
-    if (backgroundMusicRef.current) {
-      backgroundMusicRef.current.muted = !hasHeadphones;
+    // Handle audio context for note sounds
+    if (hasHeadphones && !audioContextRef.current) {
+      audioContextRef.current = new AudioContext();
+    } else if (!hasHeadphones && audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
     }
   };
-
-  const audioRefs = useRef<Record<string, HTMLAudioElement>>({});
 
   // Initialize audio elements
   useEffect(() => {
     // Create audio elements for feedback sounds
     Object.entries(AUDIO_FILES).forEach(([key, src]) => {
       const audio = new Audio(src);
+      audio.muted = !gameState.isHeadphonesConnected;
       audioRefs.current[key] = audio;
     });
 
     // Create music audio element
     musicRef.current = new Audio('/12 Pop It In (2) 1.mp3');
     musicRef.current.loop = true;
+    musicRef.current.muted = !gameState.isHeadphonesConnected;
 
     return () => {
       // Cleanup audio elements
@@ -211,18 +240,24 @@ export const RhythmGame = () => {
     lastFrameTimeRef.current = performance.now();
     gameLoopRef.current = requestAnimationFrame(gameLoop);
 
-    // Initialize and play background music
+    // Initialize audio context for note sounds
+    if (!audioContextRef.current) {
+      audioContextRef.current = new AudioContext();
+    }
+
+    // Initialize and start background music
     if (!backgroundMusicRef.current) {
       backgroundMusicRef.current = new Audio('/12 Pop It In (2) 1.mp3');
       backgroundMusicRef.current.loop = true;
-      backgroundMusicRef.current.volume = 0.5;
       backgroundMusicRef.current.muted = !gameState.isHeadphonesConnected;
+      console.log('Initial muted state:', !gameState.isHeadphonesConnected);
       backgroundMusicRef.current.play().catch(console.error);
     }
 
     // Start music
     if (musicRef.current) {
       musicRef.current.currentTime = 0;
+      musicRef.current.muted = !gameState.isHeadphonesConnected;
       musicRef.current.play().catch(console.error);
     }
   };
@@ -286,6 +321,7 @@ export const RhythmGame = () => {
   };
 
   const playNoteSound = (noteType: NoteType) => {
+    // Only play sound if headphones are connected
     if (!gameState.isHeadphonesConnected || !audioContextRef.current) return;
 
     const oscillator = audioContextRef.current.createOscillator();
@@ -399,6 +435,24 @@ export const RhythmGame = () => {
     };
   }, [gameState.isPlaying]);
 
+  // Ensure audio state is properly initialized
+  useEffect(() => {
+    // Update all audio elements when headphone state changes
+    if (backgroundMusicRef.current) {
+      backgroundMusicRef.current.muted = !gameState.isHeadphonesConnected;
+      console.log(
+        'Effect: Setting muted to:',
+        !gameState.isHeadphonesConnected
+      );
+    }
+    if (musicRef.current) {
+      musicRef.current.muted = !gameState.isHeadphonesConnected;
+    }
+    Object.values(audioRefs.current).forEach((audio) => {
+      audio.muted = !gameState.isHeadphonesConnected;
+    });
+  }, [gameState.isHeadphonesConnected]);
+
   // Clean up audio resources when component unmounts
   useEffect(() => {
     return () => {
@@ -410,6 +464,7 @@ export const RhythmGame = () => {
         audioContextRef.current.close();
         audioContextRef.current = null;
       }
+      gainNodeRef.current = null;
     };
   }, []);
 
@@ -444,6 +499,7 @@ export const RhythmGame = () => {
           display: 'flex',
           alignItems: 'center',
           gap: '8px',
+          zIndex: 2,
         }}
       >
         <span style={{ fontSize: '24px' }}>🎧</span>
@@ -474,35 +530,34 @@ export const RhythmGame = () => {
 
       {/* Notes */}
       {gameState.notes.map((note) => {
-        if (note.hit || note.missed) return null;
-
         const laneIndex = ['up', 'down', 'left', 'right'].indexOf(note.type);
-        const position = getNotePosition(note);
+        const timeDiff = gameState.currentTime - note.time;
+        const position = (timeDiff * NOTE_SPEED) / 1000;
 
         return (
           <div
             key={note.id}
             style={{
               position: 'absolute',
-              left: laneIndex * LANE_WIDTH + (LANE_WIDTH - BUTTON_SIZE) / 2,
+              left: laneIndex * LANE_WIDTH + LANE_WIDTH / 2 - 25,
               top: position,
-              width: BUTTON_SIZE,
-              height: BUTTON_SIZE,
-              backgroundColor: TRACK_COLORS[note.type],
+              width: 50,
+              height: 50,
+              backgroundColor: note.hit
+                ? '#4CAF50'
+                : note.missed
+                ? '#f44336'
+                : TRACK_COLORS[note.type],
               borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#000',
-              fontWeight: 'bold',
-              fontSize: '24px',
-              boxShadow: '0 0 10px rgba(255, 255, 255, 0.5)',
-              transition: 'transform 0.1s',
-              transform: note.hit ? 'scale(0)' : 'scale(1)',
+              transform: 'translateY(-50%)',
+              transition: 'background-color 0.1s',
+              boxShadow: note.hit
+                ? '0 0 20px #4CAF50'
+                : note.missed
+                ? '0 0 20px #f44336'
+                : `0 0 10px ${TRACK_COLORS[note.type]}`,
             }}
-          >
-            {TRACK_KEYS[note.type].arrows}
-          </div>
+          />
         );
       })}
 
@@ -568,72 +623,65 @@ export const RhythmGame = () => {
       <div
         style={{
           position: 'absolute',
+          bottom: 100,
           left: 0,
           right: 0,
-          top: GAME_HEIGHT - 100,
-          height: '2px',
+          height: 2,
           backgroundColor: '#fff',
-          boxShadow: '0 0 10px rgba(255, 255, 255, 0.5)',
         }}
       />
-
-      {/* Game controls */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '10px',
-          right: '10px',
-          zIndex: 10,
-        }}
-      >
-        {!gameState.isPlaying ? (
-          <button
-            onClick={startGame}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: '#4CAF50',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: 'pointer',
-            }}
-          >
-            Start Game
-          </button>
-        ) : (
-          <button
-            onClick={stopGame}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: '#f44336',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: 'pointer',
-            }}
-          >
-            Stop Game
-          </button>
-        )}
-      </div>
 
       {/* Score display */}
       <div
         style={{
           position: 'absolute',
-          top: '10px',
-          left: '10px',
+          top: 20,
+          left: 20,
           color: '#fff',
           fontSize: '24px',
-          zIndex: 10,
         }}
       >
         Score: {gameState.score}
         <br />
         Combo: {gameState.combo}
-        <br />
-        Max Combo: {gameState.maxCombo}
       </div>
+
+      {/* Start button */}
+      {!gameState.isPlaying && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            textAlign: 'center',
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            padding: '30px',
+            borderRadius: '10px',
+            zIndex: 1,
+          }}
+        >
+          <button
+            onClick={startGame}
+            style={{
+              padding: '20px 40px',
+              fontSize: '24px',
+              backgroundColor: '#4CAF50',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: 'pointer',
+              marginBottom: '20px',
+              boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+            }}
+          >
+            Start Game
+          </button>
+          <div style={{ color: '#fff', fontSize: '16px' }}>
+            <p>Use Arrow Keys or WASD to play!</p>
+          </div>
+        </div>
+      )}
 
       <style>
         {`
