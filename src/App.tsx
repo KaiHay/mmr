@@ -24,10 +24,10 @@ function App() {
         textAlign: 'center',
         zIndex: 10,
       }}>
-        <h1 style={{ 
+       {/* <h1 style={{ 
           margin: 0,
           fontSize: 'clamp(1.5rem, 4vw, 2.5rem)',
-        }}>Rhythm Game</h1>
+        }}>Rhythm Game</h1> */} 
       </div>
       
       <div style={{
@@ -41,7 +41,7 @@ function App() {
         <RhythmGame />
       </div>
 
-      <div style={{
+      {/* <div style={{
         position: 'absolute',
         bottom: '2vh',
         left: '50%',
@@ -54,7 +54,7 @@ function App() {
         <p style={{ margin: '0.5vh 0' }}>Use arrow keys to hit the notes!</p>
         <p style={{ margin: '0.5vh 0' }}>Perfect hit: 100 points</p>
         <p style={{ margin: '0.5vh 0' }}>Good hit: 50 points</p>
-      </div>
+      </div> */}
     </div>
   );
 }
