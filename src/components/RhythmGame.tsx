@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { AudioManager } from './AudioManager';
+import '../styles/fonts.css';
 import type {
   ButtonPattern,
   GameState,
@@ -8,6 +8,20 @@ import type {
   NoteType,
   Pattern,
 } from '../types/game';
+import { AudioManager } from './AudioManager';
+
+// Import the font
+import '../fonts/SupremeSpike-KVO8D.otf';
+
+// Add font face definition
+const fontStyles = `
+  @font-face {
+    font-family: 'SupremeSpike';
+    src: url('../fonts/SupremeSpike-KVO8D.otf') format('opentype');
+    font-weight: normal;
+    font-style: normal;
+  }
+`;
 
 const NOTE_SPEED = 500; // pixels per second
 const JUDGMENT_WINDOW = 100; // milliseconds
@@ -478,14 +492,17 @@ export const RhythmGame = () => {
     <div
       className='game-container'
       style={{
-        width: LANE_COUNT * LANE_WIDTH,
-        height: GAME_HEIGHT,
-        position: 'relative',
-        margin: '0 auto',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
         backgroundColor: '#1a1a1a',
         overflow: 'hidden',
+        fontFamily: 'SupremeSpike, sans-serif',
       }}
     >
+      <style>{fontStyles}</style>
       <AudioManager onAudioStateChange={handleAudioStateChange} />
 
       {/* Headphone status indicator */}
@@ -500,9 +517,10 @@ export const RhythmGame = () => {
           alignItems: 'center',
           gap: '8px',
           zIndex: 2,
+          fontFamily: 'SupremeSpike, sans-serif',
         }}
       >
-        <span style={{ fontSize: '24px' }}>🎧</span>
+        <span style={{ fontSize: '20px' }}>🎧</span>
         {gameState.isHeadphonesConnected
           ? 'Headphones Connected'
           : 'No Headphones'}
@@ -514,8 +532,8 @@ export const RhythmGame = () => {
           key={index}
           style={{
             position: 'absolute',
-            left: index * LANE_WIDTH,
-            width: LANE_WIDTH,
+            left: `calc(${index} * (100vw / ${LANE_COUNT}))`,
+            width: `calc(100vw / ${LANE_COUNT})`,
             height: '100%',
             borderLeft: '1px solid #333',
             borderRight: '1px solid #333',
@@ -568,7 +586,7 @@ export const RhythmGame = () => {
           bottom: 0,
           left: 0,
           right: 0,
-          height: BUTTON_SIZE + BUTTON_MARGIN * 2,
+          height: `calc(8vh + ${BUTTON_MARGIN * 2}px)`,
           display: 'flex',
           justifyContent: 'center',
           gap: BUTTON_MARGIN,
@@ -576,54 +594,60 @@ export const RhythmGame = () => {
           backgroundColor: 'rgba(0, 0, 0, 0.5)',
         }}
       >
-        {(['up', 'down', 'left', 'right'] as NoteType[]).map((type) => (
-          <div
-            key={type}
-            style={{
-              width: BUTTON_SIZE,
-              height: BUTTON_SIZE,
-              backgroundColor: activeButtons[type]
-                ? TRACK_COLORS[type]
-                : '#333',
-              borderRadius: '8px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '24px',
-              color: '#fff',
-              fontWeight: 'bold',
-              transition: 'all 0.1s ease',
-              boxShadow: activeButtons[type]
-                ? `0 0 20px ${TRACK_COLORS[type]}`
-                : 'none',
-              transform: activeButtons[type] ? 'scale(0.95)' : 'scale(1)',
-              cursor: 'default',
-              userSelect: 'none',
-              gap: '2px',
-            }}
-          >
-            <div style={{ fontSize: '28px' }}>{TRACK_KEYS[type].arrows}</div>
+        {(['up', 'down', 'left', 'right'] as NoteType[]).map((type, idx) => {
+          // For the leftmost button, show up arrow and W
+          const isLeftmost = idx === 0;
+          const arrow = isLeftmost ? TRACK_KEYS['up'].arrows : TRACK_KEYS[type].arrows;
+          const wasd = isLeftmost ? TRACK_KEYS['up'].wasd : TRACK_KEYS[type].wasd;
+          const color = isLeftmost ? TRACK_COLORS['up'] : TRACK_COLORS[type];
+          const isActive = isLeftmost ? activeButtons['up'] : activeButtons[type];
+          return (
             <div
+              key={type + (isLeftmost ? '-leftmost' : '')}
               style={{
-                fontSize: '16px',
-                opacity: 0.7,
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                padding: '2px 6px',
-                borderRadius: '4px',
+                width: '8vh',
+                height: '8vh',
+                backgroundColor: isActive ? color : '#333',
+                borderRadius: '8px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '24px',
+                color: '#fff',
+                fontWeight: 'bold',
+                transition: 'all 0.1s ease',
+                boxShadow: isActive ? `0 0 20px ${color}` : 'none',
+                transform: isActive ? 'scale(0.95)' : 'scale(1)',
+                cursor: 'default',
+                userSelect: 'none',
+                gap: '2px',
+                fontFamily: 'SupremeSpike, sans-serif',
               }}
             >
-              {TRACK_KEYS[type].wasd}
+              <div style={{ fontSize: '28px', fontFamily: 'SupremeSpike, sans-serif' }}>{arrow}</div>
+              <div
+                style={{
+                  fontSize: '14px',
+                  opacity: 0.7,
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  fontFamily: 'SupremeSpike, sans-serif',
+                }}
+              >
+                {wasd}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Hit line */}
       <div
         style={{
           position: 'absolute',
-          bottom: 100,
+          bottom: '12vh',
           left: 0,
           right: 0,
           height: 2,
@@ -639,6 +663,7 @@ export const RhythmGame = () => {
           left: 20,
           color: '#fff',
           fontSize: '24px',
+          fontFamily: 'SupremeSpike, sans-serif',
         }}
       >
         Score: {gameState.score}
@@ -659,6 +684,7 @@ export const RhythmGame = () => {
             padding: '30px',
             borderRadius: '10px',
             zIndex: 1,
+            fontFamily: 'SupremeSpike, sans-serif',
           }}
         >
           <button
@@ -673,15 +699,35 @@ export const RhythmGame = () => {
               cursor: 'pointer',
               marginBottom: '20px',
               boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+              fontFamily: 'SupremeSpike, sans-serif',
             }}
           >
             Start Game
           </button>
-          <div style={{ color: '#fff', fontSize: '16px' }}>
+          <div style={{ color: '#fff', fontSize: '18px', fontFamily: 'SupremeSpike, sans-serif' }}>
             <p>Use Arrow Keys or WASD to play!</p>
           </div>
         </div>
       )}
+
+      {/* Instructions at the bottom */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '1vh',
+          left: 0,
+          width: '100vw',
+          paddingLeft: '10%',
+          textAlign: 'left',
+          color: '#fff',
+          fontSize: '18px',
+          fontFamily: 'SupremeSpike, sans-serif',
+        }}
+      >
+        <p style={{ margin: '0.5vh 0' }}>Use arrow keys to hit the notes!</p>
+        <p style={{ margin: '0.5vh 0' }}>Perfect hit: 100 points</p>
+        <p style={{ margin: '0.5vh 0' }}>Good hit: 50 points</p>
+      </div>
 
       <style>
         {`
