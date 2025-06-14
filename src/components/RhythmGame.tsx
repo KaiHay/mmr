@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
+import { v4 as uuidv4 } from 'uuid';
+import { AudioManager } from './AudioManager';
 import type {
+  ButtonPattern,
   GameState,
   Note,
   NoteType,
   Pattern,
-  ButtonPattern,
 } from '../types/game';
-import { v4 as uuidv4 } from 'uuid';
-import { AudioManager } from './AudioManager';
 
 const NOTE_SPEED = 500; // pixels per second
 const JUDGMENT_WINDOW = 100; // milliseconds
@@ -89,6 +89,32 @@ const generateNote = (
   patternIndex,
 });
 
+// Audio feedback sounds
+const AUDIO_FILES = {
+  perfect: '/sounds/perfect.mp3',
+  good: '/sounds/good.mp3',
+  miss: '/sounds/miss.mp3',
+  combo: '/sounds/combo.mp3',
+};
+
+const DIFFICULTY_LEVELS = {
+  easy: {
+    noteSpeed: 400,
+    judgmentWindow: 150,
+    patternInterval: 2500,
+  },
+  medium: {
+    noteSpeed: 500,
+    judgmentWindow: 100,
+    patternInterval: 2000,
+  },
+  hard: {
+    noteSpeed: 600,
+    judgmentWindow: 75,
+    patternInterval: 1500,
+  },
+};
+
 export const RhythmGame = () => {
   const [gameState, setGameState] = useState<GameState>({
     score: 0,
@@ -100,12 +126,16 @@ export const RhythmGame = () => {
     currentPatternIndex: 0,
     patternStartTime: 0,
     isHeadphonesConnected: false,
+    difficulty: 'medium',
+    musicPlaying: false,
   });
 
   const gameLoopRef = useRef<number>();
   const lastPatternTimeRef = useRef<number>(0);
   const audioContextRef = useRef<AudioContext | null>(null);
   const backgroundMusicRef = useRef<HTMLAudioElement | null>(null);
+  const musicRef = useRef<HTMLAudioElement | null>(null);
+  const lastFrameTimeRef = useRef<number>(0);
 
   const [activeButtons, setActiveButtons] = useState<Record<NoteType, boolean>>(
     {
@@ -133,6 +163,37 @@ export const RhythmGame = () => {
     }
   };
 
+  const audioRefs = useRef<Record<string, HTMLAudioElement>>({});
+
+  // Initialize audio elements
+  useEffect(() => {
+    // Create audio elements for feedback sounds
+    Object.entries(AUDIO_FILES).forEach(([key, src]) => {
+      const audio = new Audio(src);
+      audioRefs.current[key] = audio;
+    });
+
+    // Create music audio element
+    musicRef.current = new Audio('/12 Pop It In (2) 1.mp3');
+    musicRef.current.loop = true;
+
+    return () => {
+      // Cleanup audio elements
+      Object.values(audioRefs.current).forEach((audio) => audio.pause());
+      if (musicRef.current) {
+        musicRef.current.pause();
+      }
+    };
+  }, []);
+
+  const playFeedbackSound = (type: 'perfect' | 'good' | 'miss' | 'combo') => {
+    const audio = audioRefs.current[type];
+    if (audio) {
+      audio.currentTime = 0;
+      audio.play().catch(console.error);
+    }
+  };
+
   const startGame = () => {
     setGameState((prev) => ({
       ...prev,
@@ -144,8 +205,10 @@ export const RhythmGame = () => {
       currentTime: 0,
       currentPatternIndex: 0,
       patternStartTime: 0,
+      musicPlaying: true,
     }));
     lastPatternTimeRef.current = 0;
+    lastFrameTimeRef.current = performance.now();
     gameLoopRef.current = requestAnimationFrame(gameLoop);
 
     // Initialize and play background music
@@ -156,10 +219,30 @@ export const RhythmGame = () => {
       backgroundMusicRef.current.muted = !gameState.isHeadphonesConnected;
       backgroundMusicRef.current.play().catch(console.error);
     }
+
+    // Start music
+    if (musicRef.current) {
+      musicRef.current.currentTime = 0;
+      musicRef.current.play().catch(console.error);
+    }
+  };
+
+  const stopGame = () => {
+    setGameState((prev) => ({
+      ...prev,
+      isPlaying: false,
+      musicPlaying: false,
+    }));
+    if (musicRef.current) {
+      musicRef.current.pause();
+    }
   };
 
   const gameLoop = (timestamp: number) => {
     if (!gameState.isPlaying) return;
+
+    const deltaTime = timestamp - lastFrameTimeRef.current;
+    lastFrameTimeRef.current = timestamp;
 
     // Generate new patterns
     if (timestamp - lastPatternTimeRef.current >= PATTERN_INTERVAL) {
@@ -260,7 +343,6 @@ export const RhythmGame = () => {
 
     // Set button as active
     setActiveButtons((prev) => ({ ...prev, [noteType]: true }));
-    // Reset button after animation
     setTimeout(() => {
       setActiveButtons((prev) => ({ ...prev, [noteType]: false }));
     }, 100);
@@ -276,13 +358,21 @@ export const RhythmGame = () => {
 
     if (hitNote) {
       const timeDiff = Math.abs(currentTime - hitNote.time);
-      const score = timeDiff < JUDGMENT_WINDOW / 2 ? 100 : 50;
+      const isPerfect = timeDiff < JUDGMENT_WINDOW / 2;
+      const score = isPerfect ? 100 : 50;
+
+      // Play feedback sound
+      playFeedbackSound(isPerfect ? 'perfect' : 'good');
 
       // Play sound when note is hit
       playNoteSound(noteType);
 
       setGameState((prev) => {
         const newCombo = prev.combo + 1;
+        // Play combo sound for every 10 combo
+        if (newCombo % 10 === 0) {
+          playFeedbackSound('combo');
+        }
         return {
           ...prev,
           score: prev.score + score,
@@ -293,6 +383,9 @@ export const RhythmGame = () => {
           ),
         };
       });
+    } else {
+      // Play miss sound for missed notes
+      playFeedbackSound('miss');
     }
   };
 
@@ -319,6 +412,12 @@ export const RhythmGame = () => {
       }
     };
   }, []);
+
+  const getNotePosition = (note: Note) => {
+    const timeDiff = gameState.currentTime - note.time;
+    const position = (timeDiff / 1000) * NOTE_SPEED;
+    return position;
+  };
 
   return (
     <div
@@ -375,34 +474,35 @@ export const RhythmGame = () => {
 
       {/* Notes */}
       {gameState.notes.map((note) => {
+        if (note.hit || note.missed) return null;
+
         const laneIndex = ['up', 'down', 'left', 'right'].indexOf(note.type);
-        const timeDiff = gameState.currentTime - note.time;
-        const position = (timeDiff * NOTE_SPEED) / 1000;
+        const position = getNotePosition(note);
 
         return (
           <div
             key={note.id}
             style={{
               position: 'absolute',
-              left: laneIndex * LANE_WIDTH + LANE_WIDTH / 2 - 25,
+              left: laneIndex * LANE_WIDTH + (LANE_WIDTH - BUTTON_SIZE) / 2,
               top: position,
-              width: 50,
-              height: 50,
-              backgroundColor: note.hit
-                ? '#4CAF50'
-                : note.missed
-                ? '#f44336'
-                : TRACK_COLORS[note.type],
+              width: BUTTON_SIZE,
+              height: BUTTON_SIZE,
+              backgroundColor: TRACK_COLORS[note.type],
               borderRadius: '50%',
-              transform: 'translateY(-50%)',
-              transition: 'background-color 0.1s',
-              boxShadow: note.hit
-                ? '0 0 20px #4CAF50'
-                : note.missed
-                ? '0 0 20px #f44336'
-                : `0 0 10px ${TRACK_COLORS[note.type]}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#000',
+              fontWeight: 'bold',
+              fontSize: '24px',
+              boxShadow: '0 0 10px rgba(255, 255, 255, 0.5)',
+              transition: 'transform 0.1s',
+              transform: note.hit ? 'scale(0)' : 'scale(1)',
             }}
-          />
+          >
+            {TRACK_KEYS[note.type].arrows}
+          </div>
         );
       })}
 
@@ -468,60 +568,72 @@ export const RhythmGame = () => {
       <div
         style={{
           position: 'absolute',
-          bottom: 100,
           left: 0,
           right: 0,
-          height: 2,
+          top: GAME_HEIGHT - 100,
+          height: '2px',
           backgroundColor: '#fff',
+          boxShadow: '0 0 10px rgba(255, 255, 255, 0.5)',
         }}
       />
+
+      {/* Game controls */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '10px',
+          right: '10px',
+          zIndex: 10,
+        }}
+      >
+        {!gameState.isPlaying ? (
+          <button
+            onClick={startGame}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: '#4CAF50',
+              color: 'white',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: 'pointer',
+            }}
+          >
+            Start Game
+          </button>
+        ) : (
+          <button
+            onClick={stopGame}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: '#f44336',
+              color: 'white',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: 'pointer',
+            }}
+          >
+            Stop Game
+          </button>
+        )}
+      </div>
 
       {/* Score display */}
       <div
         style={{
           position: 'absolute',
-          top: 20,
-          left: 20,
+          top: '10px',
+          left: '10px',
           color: '#fff',
           fontSize: '24px',
+          zIndex: 10,
         }}
       >
         Score: {gameState.score}
         <br />
         Combo: {gameState.combo}
+        <br />
+        Max Combo: {gameState.maxCombo}
       </div>
-
-      {/* Start button */}
-      {!gameState.isPlaying && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            textAlign: 'center',
-          }}
-        >
-          <button
-            onClick={startGame}
-            style={{
-              padding: '20px 40px',
-              fontSize: '24px',
-              backgroundColor: '#4CAF50',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: 'pointer',
-              marginBottom: '20px',
-            }}
-          >
-            Start Game
-          </button>
-          <div style={{ color: '#fff', fontSize: '16px' }}>
-            <p>Use Arrow Keys or WASD to play!</p>
-          </div>
-        </div>
-      )}
 
       <style>
         {`

@@ -3,20 +3,57 @@ import { RhythmGame } from './components/RhythmGame';
 function App() {
   return (
     <div style={{
-      minHeight: '100vh',
+      width: '100vw',
+      height: '100vh',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: '#000',
-      padding: '20px',
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      overflow: 'hidden',
     }}>
-      <h1 style={{ color: '#fff', marginBottom: '20px' }}>Rhythm Game</h1>
-      <RhythmGame />
-      <div style={{ color: '#fff', marginTop: '20px', textAlign: 'center' }}>
-        <p>Use arrow keys to hit the notes!</p>
-        <p>Perfect hit: 100 points</p>
-        <p>Good hit: 50 points</p>
+      <div style={{
+        position: 'absolute',
+        top: '2vh',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        color: '#fff',
+        textAlign: 'center',
+        zIndex: 10,
+      }}>
+        <h1 style={{ 
+          margin: 0,
+          fontSize: 'clamp(1.5rem, 4vw, 2.5rem)',
+        }}>Rhythm Game</h1>
+      </div>
+      
+      <div style={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        <RhythmGame />
+      </div>
+
+      <div style={{
+        position: 'absolute',
+        bottom: '2vh',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        color: '#fff',
+        textAlign: 'center',
+        zIndex: 10,
+        fontSize: 'clamp(0.8rem, 2vw, 1rem)',
+      }}>
+        <p style={{ margin: '0.5vh 0' }}>Use arrow keys to hit the notes!</p>
+        <p style={{ margin: '0.5vh 0' }}>Perfect hit: 100 points</p>
+        <p style={{ margin: '0.5vh 0' }}>Good hit: 50 points</p>
       </div>
     </div>
   );
