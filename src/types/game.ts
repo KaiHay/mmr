@@ -1,5 +1,7 @@
 export type NoteType = 'up' | 'down' | 'left' | 'right';
 
+export type Difficulty = 'easy' | 'medium' | 'hard';
+
 export interface Note {
   id: string;
   type: NoteType;
@@ -28,6 +30,8 @@ export interface GameState {
   currentTime: number;
   currentPatternIndex: number;
   patternStartTime: number;
+  difficulty: Difficulty;
+  musicPlaying: boolean;
 }
 
 export interface GameStats {
