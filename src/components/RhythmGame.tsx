@@ -161,6 +161,9 @@ export const RhythmGame = () => {
     }
   );
 
+  // Track which columns are active (flashing)
+  const [activeColumns, setActiveColumns] = useState<boolean[]>([false, false, false, false]);
+
   const audioRefs = useRef<Record<string, HTMLAudioElement>>({});
 
   const handleAudioStateChange = (hasHeadphones: boolean) => {
@@ -397,6 +400,25 @@ export const RhythmGame = () => {
       setActiveButtons((prev) => ({ ...prev, [noteType]: false }));
     }, 100);
 
+    // Synchronize columns with button flashes
+    // Use the index in the ['left', 'up', 'down', 'right'] array for both buttons and columns
+    const buttonOrder: NoteType[] = ['left', 'up', 'down', 'right'];
+    const colIdx = buttonOrder.indexOf(noteType);
+    if (colIdx !== -1) {
+      setActiveColumns((prev) => {
+        const updated = [...prev];
+        updated[colIdx] = true;
+        return updated;
+      });
+      setTimeout(() => {
+        setActiveColumns((prev) => {
+          const updated = [...prev];
+          updated[colIdx] = false;
+          return updated;
+        });
+      }, 100);
+    }
+
     const currentTime = performance.now();
     const hitNote = gameState.notes.find(
       (note) =>
@@ -527,24 +549,35 @@ export const RhythmGame = () => {
       </div>
 
       {/* Lanes with visual guides */}
-      {Array.from({ length: LANE_COUNT }).map((_, index) => (
-        <div
-          key={index}
-          style={{
-            position: 'absolute',
-            left: `calc(${index} * (100vw / ${LANE_COUNT}))`,
-            width: `calc(100vw / ${LANE_COUNT})`,
-            height: '100%',
-            borderLeft: '1px solid #333',
-            borderRight: '1px solid #333',
-            background:
-              'linear-gradient(to bottom, transparent 0%, rgba(255, 255, 255, 0.05) 50%, transparent 100%)',
-            backgroundSize: '100% 200px',
-            backgroundRepeat: 'repeat-y',
-            animation: 'scrollLane 1s linear infinite',
-          }}
-        />
-      ))}
+      {(['left', 'up', 'down', 'right'] as NoteType[]).map((type, index) => {
+        const flashColor = TRACK_COLORS[type];
+        return (
+          <div
+            key={index}
+            style={{
+              position: 'absolute',
+              left: `calc(${index} * (100vw / ${LANE_COUNT}))`,
+              width: `calc(100vw / ${LANE_COUNT})`,
+              height: '100%',
+              borderLeft: '1px solid #333',
+              borderRight: '1px solid #333',
+              background:
+                'linear-gradient(to bottom, transparent 0%, rgba(255, 255, 255, 0.05) 50%, transparent 100%)',
+              backgroundSize: '100% 200px',
+              backgroundRepeat: 'repeat-y',
+              animation: 'scrollLane 1s linear infinite',
+              transition: 'background 0.1s',
+              boxShadow: activeColumns[index]
+                ? `0 0 40px 10px ${flashColor}80`
+                : undefined,
+              zIndex: activeColumns[index] ? 1 : 0,
+              ...(activeColumns[index]
+                ? { background: `${flashColor}33` } // 20% opacity
+                : {}),
+            }}
+          />
+        );
+      })}
 
       {/* Notes */}
       {gameState.notes.map((note) => {
@@ -594,16 +627,13 @@ export const RhythmGame = () => {
           backgroundColor: 'rgba(0, 0, 0, 0.5)',
         }}
       >
-        {(['up', 'down', 'left', 'right'] as NoteType[]).map((type, idx) => {
+        {(['left', 'up', 'down', 'right'] as NoteType[]).map((type, idx) => {
           // For the leftmost button, show up arrow and W
-          const isLeftmost = idx === 0;
-          const arrow = isLeftmost ? TRACK_KEYS['up'].arrows : TRACK_KEYS[type].arrows;
-          const wasd = isLeftmost ? TRACK_KEYS['up'].wasd : TRACK_KEYS[type].wasd;
-          const color = isLeftmost ? TRACK_COLORS['up'] : TRACK_COLORS[type];
-          const isActive = isLeftmost ? activeButtons['up'] : activeButtons[type];
+          const color = TRACK_COLORS[type];
+          const isActive = activeButtons[type];
           return (
             <div
-              key={type + (isLeftmost ? '-leftmost' : '')}
+              key={type}
               style={{
                 width: '8vh',
                 height: '8vh',
@@ -625,7 +655,7 @@ export const RhythmGame = () => {
                 fontFamily: 'SupremeSpike, sans-serif',
               }}
             >
-              <div style={{ fontSize: '28px', fontFamily: 'SupremeSpike, sans-serif' }}>{arrow}</div>
+              <div style={{ fontSize: '28px', fontFamily: 'SupremeSpike, sans-serif' }}>{TRACK_KEYS[type].arrows}</div>
               <div
                 style={{
                   fontSize: '14px',
@@ -636,7 +666,7 @@ export const RhythmGame = () => {
                   fontFamily: 'SupremeSpike, sans-serif',
                 }}
               >
-                {wasd}
+                {TRACK_KEYS[type].wasd}
               </div>
             </div>
           );
@@ -714,7 +744,7 @@ export const RhythmGame = () => {
       <div
         style={{
           position: 'absolute',
-          bottom: '1vh',
+          bottom: '2vh',
           left: 0,
           width: '100vw',
           paddingLeft: '10%',
@@ -724,7 +754,7 @@ export const RhythmGame = () => {
           fontFamily: 'SupremeSpike, sans-serif',
         }}
       >
-        <p style={{ margin: '0.5vh 0' }}>Use arrow keys to hit the notes!</p>
+        {/* <p style={{ margin: '0.5vh 0' }}>Use arrow keys to hit the notes!</p> */}
         <p style={{ margin: '0.5vh 0' }}>Perfect hit: 100 points</p>
         <p style={{ margin: '0.5vh 0' }}>Good hit: 50 points</p>
       </div>
