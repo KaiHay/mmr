@@ -30,6 +30,7 @@ export interface GameState {
   currentTime: number;
   currentPatternIndex: number;
   patternStartTime: number;
+  isHeadphonesConnected: boolean; // New field for headphone connection state
   difficulty: Difficulty;
   musicPlaying: boolean;
 }
@@ -40,4 +41,4 @@ export interface GameStats {
   miss: number;
   maxCombo: number;
   score: number;
-} 
+}
