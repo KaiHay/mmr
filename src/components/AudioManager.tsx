@@ -26,19 +26,60 @@ export const AudioManager = ({ onAudioStateChange }: AudioManagerProps) => {
             (device) => device.kind === 'audiooutput'
           );
 
-          // Strict headphone detection
+          // Debug log all audio outputs
+          console.log(
+            'All audio outputs:',
+            audioOutputs.map((d) => ({
+              label: d.label,
+              deviceId: d.deviceId,
+              groupId: d.groupId,
+            }))
+          );
+
+          // Check for both wired and bluetooth headphones
           const hasHeadphones = audioOutputs.some((device) => {
             const label = device.label.toLowerCase();
-            // Only consider it headphones if it explicitly contains these terms
-            return (
+
+            // Check for wired headphones (existing logic)
+            const isWiredHeadphone =
               label.includes('headphone') ||
               label.includes('headset') ||
               label.includes('earphone') ||
               label.includes('earbud') ||
-              label.includes('airpods') ||
-              label.includes('bluetooth headphone') ||
-              label.includes('bluetooth headset')
-            );
+              label.includes('airpods');
+
+            // Enhanced bluetooth device detection
+            const isBluetoothDevice =
+              // Check for common bluetooth headset labels
+              label.includes('bluetooth') ||
+              label.includes('wireless') ||
+              label.includes('bt-') ||
+              label.includes('bt ') ||
+              // Check for common bluetooth headset manufacturers
+              label.includes('jbl') ||
+              label.includes('sony') ||
+              label.includes('bose') ||
+              label.includes('beats') ||
+              label.includes('samsung') ||
+              label.includes('apple') ||
+              // Check for bluetooth in groupId
+              (device.groupId &&
+                device.groupId.toLowerCase().includes('bluetooth')) ||
+              // Check for bluetooth in deviceId
+              (device.deviceId &&
+                device.deviceId.toLowerCase().includes('bluetooth'));
+
+            // Debug log for each device
+            if (isBluetoothDevice) {
+              console.log('Bluetooth device detected:', {
+                label: device.label,
+                deviceId: device.deviceId,
+                groupId: device.groupId,
+              });
+            }
+
+            // Consider it headphones if it's either a wired headphone or a bluetooth device
+            return isWiredHeadphone || isBluetoothDevice;
           });
 
           // Only update and log if the state has changed
